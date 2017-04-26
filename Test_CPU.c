@@ -46,14 +46,14 @@ static double LoopOverhead() {
     return sum;
 }
 //2: Procedure call overhead
-static void TestArgument_0() {}
-static void TestArgument_1(int a) {}
-static void TestArgument_2(int a, int b) {}
-static void TestArgument_3(int a, int b, int c) {}
-static void TestArgument_4(int a, int b, int c, int d) {}
-static void TestArgument_5(int a, int b, int c, int d, int e) {}
-static void TestArgument_6(int a, int b, int c, int d, int e, int f) {}
-static void TestArgument_7(int a, int b, int c, int d, int e, int f, int g) {}
+static __attribute__ ((noinline)) void TestArgument_0() {}
+static __attribute__ ((noinline)) void TestArgument_1(int a) {}
+static __attribute__ ((noinline)) void TestArgument_2(int a, int b) {}
+static __attribute__ ((noinline)) void TestArgument_3(int a, int b, int c) {}
+static __attribute__ ((noinline)) void TestArgument_4(int a, int b, int c, int d) {}
+static __attribute__ ((noinline)) void TestArgument_5(int a, int b, int c, int d, int e) {}
+static __attribute__ ((noinline)) void TestArgument_6(int a, int b, int c, int d, int e, int f) {}
+static __attribute__ ((noinline)) void TestArgument_7(int a, int b, int c, int d, int e, int f, int g) {}
 static double ProcedureOverhead(int num) {
     uint64_t start = 0;
     uint64_t end = 0;
