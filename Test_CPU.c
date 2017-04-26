@@ -45,6 +45,7 @@ static double LoopOverhead() {
     sum /= 1000.0;
     return sum;
 }
+
 //2: Procedure call overhead
 static __attribute__ ((noinline)) void TestArgument_0() {}
 static __attribute__ ((noinline)) void TestArgument_1(int a) {}
@@ -55,48 +56,79 @@ static __attribute__ ((noinline)) void TestArgument_5(int a, int b, int c, int d
 static __attribute__ ((noinline)) void TestArgument_6(int a, int b, int c, int d, int e, int f) {}
 static __attribute__ ((noinline)) void TestArgument_7(int a, int b, int c, int d, int e, int f, int g) {}
 static double ProcedureOverhead(int num) {
-    uint64_t start = 0;
-    uint64_t end = 0;
+    uint64_t start, end;
     double sum = 0;
     for (int i = 0; i < 1000; i++) {
         switch (num) {
             case 0:
                 start = rdtsc();
                 TestArgument_0();
+                TestArgument_0();
+                TestArgument_0();
+                TestArgument_0();
+                TestArgument_0();
                 end = rdtsc();
                 break;
             case 1:
                 start = rdtsc();
+                TestArgument_1(1);
+                TestArgument_1(1);
+                TestArgument_1(1);
+                TestArgument_1(1);
                 TestArgument_1(1);
                 end = rdtsc();
                 break;
             case 2:
                 start = rdtsc();
                 TestArgument_2(1, 1);
+                TestArgument_2(1, 1);
+                TestArgument_2(1, 1);
+                TestArgument_2(1, 1);
+                TestArgument_2(1, 1);
                 end = rdtsc();
                 break;
             case 3:
                 start = rdtsc();
+                TestArgument_3(1, 1, 1);
+                TestArgument_3(1, 1, 1);
+                TestArgument_3(1, 1, 1);
+                TestArgument_3(1, 1, 1);
                 TestArgument_3(1, 1, 1);
                 end = rdtsc();
                 break;
             case 4:
                 start = rdtsc();
                 TestArgument_4(1, 1, 1, 1);
+                TestArgument_4(1, 1, 1, 1);
+                TestArgument_4(1, 1, 1, 1);
+                TestArgument_4(1, 1, 1, 1);
+                TestArgument_4(1, 1, 1, 1);
                 end = rdtsc();
                 break;
             case 5:
                 start = rdtsc();
+                TestArgument_5(1, 1, 1, 1, 1);
+                TestArgument_5(1, 1, 1, 1, 1);
+                TestArgument_5(1, 1, 1, 1, 1);
+                TestArgument_5(1, 1, 1, 1, 1);
                 TestArgument_5(1, 1, 1, 1, 1);
                 end = rdtsc();
                 break;
             case 6:
                 start = rdtsc();
                 TestArgument_6(1, 1, 1, 1, 1, 1);
+                TestArgument_6(1, 1, 1, 1, 1, 1);
+                TestArgument_6(1, 1, 1, 1, 1, 1);
+                TestArgument_6(1, 1, 1, 1, 1, 1);
+                TestArgument_6(1, 1, 1, 1, 1, 1);
                 end = rdtsc();
                 break;
             case 7:
                 start = rdtsc();
+                TestArgument_7(1, 1, 1, 1, 1, 1, 1);
+                TestArgument_7(1, 1, 1, 1, 1, 1, 1);
+                TestArgument_7(1, 1, 1, 1, 1, 1, 1);
+                TestArgument_7(1, 1, 1, 1, 1, 1, 1);
                 TestArgument_7(1, 1, 1, 1, 1, 1, 1);
                 end = rdtsc();
                 break;
@@ -104,7 +136,7 @@ static double ProcedureOverhead(int num) {
                 start = rdtsc();
                 end = rdtsc();
         }
-        sum += (end - start);
+        sum += (end - start) / 5.0;
     }
     sum /= 1000.0;
     return sum;
@@ -114,7 +146,6 @@ static double ProcedureOverhead(int num) {
 static double SystemOverhead() {
     uint64_t start;
     uint64_t end;
-    //long double sum = 0;
     double sum = 0;
     for (int i = 0; i < 1000; i++) {
         start = rdtsc();
@@ -128,40 +159,36 @@ static double SystemOverhead() {
 
 //4: Task creation time
 static double TaskCreationTime() {
-    double total_time = 0;
-
+    double sum = 0;
     for(int i = 0; i < ITERATION; i++){
         uint64_t start, end;
         start = rdtsc();
         pid_t pid = fork();
-        end = rdtsc(); //parent's end
-
-        if (pid == 0){ // child
+        end = rdtsc();
+        if (pid == 0){
             exit(0);
         }
-        else{		//parent
+        else{
             //wait(NULL);
             //end = rdtsc();
-            total_time += end - start;
+            sum += end - start;
         }
     }
-    return total_time / ITERATION;
+    return sum / ITERATION;
 }
 
 //5: Context switch time
 uint64_t OneSwitchTime(int *fd) {
-    uint64_t start;
-    uint64_t end;
-    uint64_t elapsed = 0;
+    uint64_t start, end, elapsed = 0;
 
     pid_t pid = fork();
 
-    if (pid == 0){ 	//child
+    if (pid == 0){
         end = rdtsc();
         write(fd[1], (void*)&end, sizeof(end));
         exit(0);
     }
-    else{		//parent
+    else{
         start = rdtsc();
         wait(NULL);
         read(fd[0], (void*)&end, sizeof(end));
