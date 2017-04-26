@@ -257,7 +257,6 @@ static double CSKernelOverhead() {
 
 int main(int argc, const char * argv[]) {
 	double overhead;
-	int i = 0;
 
 	//Read time overhead
 	overhead = ReadTimeOverhead();
@@ -267,20 +266,20 @@ int main(int argc, const char * argv[]) {
 	overhead = LoopOverhead();
 	printf("Loop overhead = %lf nanoseconds\n", overhead);
 
-	//Procedure call
-	for (i = 0; i < 8; i++) {
+	//Procedure call overhead
+	for (int i = 0; i < 8; i++) {
 		overhead = ProcedureOverhead(i);
 		printf("Procedure call overhead with %d arguments = %lf nanoseconds\n", i, overhead);
 	}
-	//system call overhead
+	//System call overhead
 	overhead = SystemOverhead();
 	printf("System call overhead = %lf nanoseconds\n", overhead);
 
-	//Process creation
+	//Task creation time
 	overhead = TaskCreationTime();
 	printf("Process creation overhead = %lf nanoseconds\n", overhead);
 
-	//Process context switch
+	//Context switch time
 	//printf("%lf\n", PipeOverhead());
 	overhead = ProcessContextSwitchOverhead()-PipeOverhead();
 	printf("Process context switch overhead = %lf nanoseconds\n", overhead);
