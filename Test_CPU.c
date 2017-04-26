@@ -55,6 +55,7 @@ static __attribute__ ((noinline)) void TestArgument_4(int a, int b, int c, int d
 static __attribute__ ((noinline)) void TestArgument_5(int a, int b, int c, int d, int e) {}
 static __attribute__ ((noinline)) void TestArgument_6(int a, int b, int c, int d, int e, int f) {}
 static __attribute__ ((noinline)) void TestArgument_7(int a, int b, int c, int d, int e, int f, int g) {}
+
 static double ProcedureOverhead(int num) {
     uint64_t start, end;
     double sum = 0;
@@ -159,9 +160,9 @@ static double SystemOverhead() {
 
 //4: Task creation time
 static double TaskCreationTime() {
+    uint64_t start, end;
     double sum = 0;
-    for(int i = 0; i < ITERATION; i++){
-        uint64_t start, end;
+    for(int i = 0; i < 1000; i++){
         start = rdtsc();
         pid_t pid = fork();
         end = rdtsc();
@@ -169,20 +170,17 @@ static double TaskCreationTime() {
             exit(0);
         }
         else{
-            //wait(NULL);
-            //end = rdtsc();
             sum += end - start;
         }
     }
-    return sum / ITERATION;
+    return sum / 1000.0;
 }
 
 //5: Context switch time
-uint64_t OneSwitchTime(int *fd) {
-    uint64_t start, end, elapsed = 0;
-
+uint64_t SwitchTime(int *fd) {
+    uint64_t start, end;
+    uint64_t sum = 0;
     pid_t pid = fork();
-
     if (pid == 0){
         end = rdtsc();
         write(fd[1], (void*)&end, sizeof(end));
@@ -194,46 +192,41 @@ uint64_t OneSwitchTime(int *fd) {
         read(fd[0], (void*)&end, sizeof(end));
     }
     if(end > start){
-        elapsed = end - start;
+        sum = end - start;
     }
-    return elapsed;
+    return sum;
 }
 
-static double ProcessContextSwitchOverhead() {
-
+static double ContextSwitchOverhead() {
     int fd[2];
     pipe(fd);
-    uint64_t total_time = 0;
+    uint64_t sum = 0;
     int i = 0;
-    while(i < ITERATION) {
-        uint64_t elapsed = OneSwitchTime(fd);
-        //printf("%llu\n", elapsed);
-        if (elapsed > 0) {
-            total_time += elapsed;
-            i += 1;
+    while(i < 100) {
+        uint64_t number = SwitchTime(fd);
+        if (number > 0) {
+            sum += number;
+            i++;
         }
     }
-    return (double)total_time/ (double)ITERATION;
+    return (double)sum/ 100.0;
 }
 
 
 static double PipeOverhead() {
-    uint64_t total_time = 0;
-
-    int i = 0;
-    for (i = 0; i< ITERATION; i++){
-        uint64_t  start, end, elapsed;
+    uint64_t sum = 0;
+    for (int i = 0; i < 100; i++){
+        uint64_t  start, end, number;
         int fd[2];
         pipe(fd);
-
         start = rdtsc();
         write(fd[1], &start, sizeof(start));
         read(fd[0], &start, sizeof(start));
         end = rdtsc();
-        elapsed = end - start;
-        total_time += elapsed;
+        number = end - start;
+        sum += number;
     }
-    return (double)total_time / ITERATION;
+    return (double)sum / 100.0;
 }
 
 
@@ -241,27 +234,28 @@ static double PipeOverhead() {
 void *Task() {
     pthread_exit(0);
 }
+
+//1-5-2 Kernel Switch time
 static double KernelOverhead() {
     pthread_t thread;
-    uint64_t start;
-    uint64_t end;
-    uint64_t elapsed;
+    uint64_t start, end;
+    double sum;
     start = rdtsc();
     pthread_create(&thread, NULL, Task, NULL);
     end = rdtsc();
-    elapsed = (end - start);
-    return elapsed;
+    sum = end - start;
+    return sum;
 }
 
 //Context switch kernel thread overhead
 static uint64_t thread_end;
 static uint64_t thread_start;
-static uint64_t cs_time;
+static uint64_t sum;
 void *Thread2() {
     thread_end = rdtsc();
     pthread_exit(0);
-
 }
+
 void *Thread1() {
     pthread_t t2;
     pthread_create(&t2, NULL, &Thread2, NULL);
@@ -269,12 +263,12 @@ void *Thread1() {
     pthread_join(t2, NULL);
     pthread_exit(0);
 }
-static double CSKernelOverhead() {
+static double ContextSwitchTImeKernel() {
     pthread_t t1;
     pthread_create(&t1, NULL, &Thread1, NULL);
     pthread_join(t1, NULL);
-    cs_time = thread_end - thread_start;
-    return cs_time;
+    sum = thread_end - thread_start;
+    return sum;
 }
 int main(int argc, const char * argv[]) {
     double overhead;
@@ -303,7 +297,7 @@ int main(int argc, const char * argv[]) {
 
     //Context switch time
     //printf("%lf\n", PipeOverhead());
-    overhead = ProcessContextSwitchOverhead()-PipeOverhead();
+    overhead = ContextSwitchOverhead()-PipeOverhead();
     printf("Process context switch overhead = %lf circles\n", overhead);
 
     //kernel thread
@@ -311,7 +305,7 @@ int main(int argc, const char * argv[]) {
     printf("kernel thread overhead = %lf circles\n", overhead);
 
     //kernel thread context switch time
-    overhead = CSKernelOverhead();
+    overhead = ContextSwitchTImeKernel();
     printf("kernel thread context switch overhead = %lf circles\n", overhead);
     return 0;
 }
