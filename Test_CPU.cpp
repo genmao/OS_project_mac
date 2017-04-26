@@ -257,7 +257,6 @@ static double CSKernelOverhead() {
 
 int main(int argc, const char * argv[]) {
 	double overhead;
-	int i = 0;
 
 	//Read time overhead
 	overhead = ReadTimeOverhead();
@@ -268,7 +267,7 @@ int main(int argc, const char * argv[]) {
 	printf("Loop overhead = %lf nanoseconds\n", overhead);
 
 	//Procedure call
-	for (i = 0; i < 8; i++) {
+	for (int i = 0; i < 8; i++) {
 		overhead = ProcedureOverhead(i);
 		printf("Procedure call overhead with %d arguments = %lf nanoseconds\n", i, overhead);
 	}
