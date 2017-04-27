@@ -93,6 +93,7 @@ static __attribute__ ((noinline)) void TestArgument_7(int a, int b, int c, int d
 
 static double ProcedureOverhead(int num) {
     uint64_t start, end;
+
     double sum = 0, std = 0;
     double val[1000] = {0};
     for (int i = 0; i < 1000; i++) {
@@ -115,6 +116,7 @@ static double ProcedureOverhead(int num) {
                 break;
             case 1:
                 start = rdtsc();
+
                 for(int j=0;j<100;j++){
                     TestArgument_1(1);
                     TestArgument_1(1);
@@ -131,6 +133,7 @@ static double ProcedureOverhead(int num) {
                 break;
             case 2:
                 start = rdtsc();
+
                 for(int j=0;j<100;j++){
                     TestArgument_2(1, 1);
                     TestArgument_2(1, 1);
@@ -232,7 +235,7 @@ static double ProcedureOverhead(int num) {
         sum += (end - start) / 1000.0;
         val[i] = (end - start) / 1000.0;
     }
-    sum /= 1000.0;
+    //sum /= 1000.0;
     
     // calculate std
     for (int i = 0; i<1000; i++){
@@ -247,6 +250,7 @@ static double ProcedureOverhead(int num) {
 static double SystemOverhead() {
     uint64_t start;
     uint64_t end;
+
     double sum = 0, std = 0;
     double val[1000] = {0};
     for (int i = 0; i < 1000; i++) {
@@ -294,7 +298,6 @@ static double TaskCreationTime() {
     std = sqrt(std/100);
     printf("Process creation overhead std = %lf cycles\n", std);
     return sum;
-    
 }
 
 //5: Context switch time
@@ -323,6 +326,7 @@ static double ContextSwitchOverhead() {
     pipe(fd);
     uint64_t sum = 0;
     int i = 0;
+
     uint64_t val[100] = {0};
     double std = 0;
     while(i < 100) {
@@ -462,5 +466,6 @@ int main(int argc, const char * argv[]) {
     //Context switch time between kernel
     overhead = ContextSwitchTimeKernel();
     printf("kernel thread context switch overhead Ave. = %lf cycles\n", overhead);
+
     return 0;
 }
