@@ -249,6 +249,7 @@ static double CSKernelOverhead() {
     cs_time = thread_end - thread_start;
     return cs_time;
 }
+
 int main(int argc, const char * argv[]) {
     double overhead;
     int i = 0;
