@@ -43,7 +43,7 @@ static double ReadTimeOverhead() {
         sum += end - start;
     }
     sum /= 1000.0;
-    
+
     // calculate std
     for (int i = 0; i<1000; i++){
         std += (sum-val[i])*(sum-val[i]);
@@ -70,7 +70,7 @@ static double LoopOverhead() {
         sum += (end - start) / 10000.0;
     }
     sum /= 1000.0;
-    
+
     // calculate std
     for (int i = 0; i<1000; i++){
         std += (sum-val[i])*(sum-val[i]);
@@ -93,7 +93,6 @@ static __attribute__ ((noinline)) void TestArgument_7(int a, int b, int c, int d
 
 static double ProcedureOverhead(int num) {
     uint64_t start, end;
-
     double sum = 0, std = 0;
     double val[1000] = {0};
     for (int i = 0; i < 1000; i++) {
@@ -116,7 +115,6 @@ static double ProcedureOverhead(int num) {
                 break;
             case 1:
                 start = rdtsc();
-
                 for(int j=0;j<100;j++){
                     TestArgument_1(1);
                     TestArgument_1(1);
@@ -133,7 +131,6 @@ static double ProcedureOverhead(int num) {
                 break;
             case 2:
                 start = rdtsc();
-
                 for(int j=0;j<100;j++){
                     TestArgument_2(1, 1);
                     TestArgument_2(1, 1);
@@ -235,8 +232,8 @@ static double ProcedureOverhead(int num) {
         sum += (end - start) / 1000.0;
         val[i] = (end - start) / 1000.0;
     }
-    //sum /= 1000.0;
-    
+    sum /= 1000.0;
+
     // calculate std
     for (int i = 0; i<1000; i++){
         std += (sum-val[i])*(sum-val[i]);
@@ -250,7 +247,6 @@ static double ProcedureOverhead(int num) {
 static double SystemOverhead() {
     uint64_t start;
     uint64_t end;
-
     double sum = 0, std = 0;
     double val[1000] = {0};
     for (int i = 0; i < 1000; i++) {
@@ -283,12 +279,12 @@ static double TaskCreationTime() {
         if (pid == 0){
             exit(0);
         }
-        // parent process
+            // parent process
         else{
             sum += end - start;
             val[i] = end - start;
         }
-        
+
     }
     //end = rdtsc();
     sum /= 100.0;
@@ -298,6 +294,7 @@ static double TaskCreationTime() {
     std = sqrt(std/100);
     printf("Process creation overhead std = %lf cycles\n", std);
     return sum;
+
 }
 
 //5: Context switch time
@@ -326,7 +323,6 @@ static double ContextSwitchOverhead() {
     pipe(fd);
     uint64_t sum = 0;
     int i = 0;
-
     uint64_t val[100] = {0};
     double std = 0;
     while(i < 100) {
@@ -383,7 +379,7 @@ static double KernelOverhead() {
         sum += end - start;
         val[i] = end - start;
     }
-    
+
     double mean = (double)sum/ 100.0;
     for(int i=0; i<100; i++){
         std += (mean-val[i])*(mean-val[i]);
@@ -418,7 +414,7 @@ static double ContextSwitchTimeKernel() {
         sum += thread_end - thread_start;
         val[i] = thread_end - thread_start;
     }
-    
+
     double mean = (double)sum/ 100.0;
     double std = 0;
     for(int i=0; i<100; i++){
@@ -456,7 +452,7 @@ int main(int argc, const char * argv[]) {
     //kernel thread
     overhead = KernelOverhead();
     printf("kernel thread creation overhead Ave. = %lf cycles\n", overhead);
-    
+
     //Context switch time between process
     //printf("%lf\n", PipeOverhead());
     // Since we have 2 context switch, we need to devide by 2?
@@ -466,6 +462,5 @@ int main(int argc, const char * argv[]) {
     //Context switch time between kernel
     overhead = ContextSwitchTimeKernel();
     printf("kernel thread context switch overhead Ave. = %lf cycles\n", overhead);
-
     return 0;
 }
