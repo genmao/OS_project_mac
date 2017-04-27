@@ -162,7 +162,7 @@ static double SystemOverhead() {
 static double TaskCreationTime() {
     uint64_t start, end;
     double sum = 0;
-    for(int i = 0; i < 1000; i++){
+    for(int i = 0; i < 100; i++){
         start = rdtsc();
         pid_t pid = fork();
         end = rdtsc();
@@ -173,7 +173,7 @@ static double TaskCreationTime() {
             sum += end - start;
         }
     }
-    return sum / 1000.0;
+    return sum / 100.0;
 }
 
 //5: Context switch time
@@ -216,15 +216,14 @@ static double ContextSwitchOverhead() {
 static double PipeOverhead() {
     uint64_t sum = 0;
     for (int i = 0; i < 100; i++){
-        uint64_t  start, end, number;
+        uint64_t start, end;
         int fd[2];
         pipe(fd);
         start = rdtsc();
         write(fd[1], &start, sizeof(start));
         read(fd[0], &start, sizeof(start));
         end = rdtsc();
-        number = end - start;
-        sum += number;
+        sum += end - start;
     }
     return (double)sum / 100.0;
 }
@@ -263,49 +262,49 @@ void *Thread1() {
     pthread_join(t2, NULL);
     pthread_exit(0);
 }
-static double ContextSwitchTImeKernel() {
+static double ContextSwitchTimeKernel() {
     pthread_t t1;
     pthread_create(&t1, NULL, &Thread1, NULL);
     pthread_join(t1, NULL);
     sum = thread_end - thread_start;
     return sum;
 }
+
 int main(int argc, const char * argv[]) {
     double overhead;
-    int i = 0;
 
     //Read time overhead
     overhead = ReadTimeOverhead();
-    printf("Read Time overhead = %lf circles\n", overhead);
+    printf("Read Time overhead = %lf cycles\n", overhead);
 
     //Read time overhead
     overhead = LoopOverhead();
-    printf("Loop overhead = %lf circles\n", overhead);
+    printf("Loop overhead = %lf cycles\n", overhead);
 
     //Procedure call overhead
-    for (i = 0; i < 8; i++) {
+    for (int i = 0; i < 10; i++) {
         overhead = ProcedureOverhead(i);
-        printf("Procedure call overhead with %d arguments = %lf circles\n", i, overhead);
+        printf("Procedure call overhead with %d arguments = %lf cycles\n", i, overhead);
     }
     //System call overhead
     overhead = SystemOverhead();
-    printf("System call overhead = %lf circles\n", overhead);
+    printf("System call overhead = %lf cycles\n", overhead);
 
     //Task creation time
     overhead = TaskCreationTime();
-    printf("Process creation overhead = %lf circles\n", overhead);
+    printf("Process creation overhead = %lf cycles\n", overhead);
 
-    //Context switch time
+    //Context switch time between process
     //printf("%lf\n", PipeOverhead());
     overhead = ContextSwitchOverhead()-PipeOverhead();
-    printf("Process context switch overhead = %lf circles\n", overhead);
+    printf("Process context switch overhead = %lf cycles\n", overhead);
 
     //kernel thread
     overhead = KernelOverhead();
-    printf("kernel thread overhead = %lf circles\n", overhead);
+    printf("kernel thread overhead = %lf cycles\n", overhead);
 
-    //kernel thread context switch time
-    overhead = ContextSwitchTImeKernel();
-    printf("kernel thread context switch overhead = %lf circles\n", overhead);
+    //Context switch time between kernel
+    overhead = ContextSwitchTimeKernel();
+    printf("kernel thread context switch overhead = %lf cycles\n", overhead);
     return 0;
 }
