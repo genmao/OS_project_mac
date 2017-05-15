@@ -5,7 +5,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
-#define CacheSize 64
+#define CacheLineSize 64
 #define nanosecond pow(10.0, -9)
 #define MB 1048576
 #define CPU_cycle 2.9
@@ -82,9 +82,18 @@ double ReadingBandwidth(int expand_times) {
     char* random_array = GenerateRandomArray(expand_times);
     uint64_t array_size = (uint64_t)pow(2.0, expand_times * 1.0);
     start = rdtsc();
-    char dump_char;
-    for (uint64_t i = 0; i < array_size; i += CacheSize) {
-        dump_char = random_array[i];
+    char tmp0,tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7;
+    
+    // unroll loop for more accurate results
+    for (uint64_t i = 0; i < array_size; i += (CacheLineSize*8)) {
+        tmp0 = random_array[i];
+        tmp1 = random_array[i+CacheLineSize];
+        tmp2 = random_array[i+CacheLineSize*2];
+        tmp3 = random_array[i+CacheLineSize*3];
+        tmp4 = random_array[i+CacheLineSize*4];
+        tmp5 = random_array[i+CacheLineSize*5];
+        tmp6 = random_array[i+CacheLineSize*6];
+        tmp7 = random_array[i+CacheLineSize*7];
     }
     end = rdtsc();
     count = end - start;
@@ -96,8 +105,17 @@ double WritingBandwidth(int expand_times) {
     char* random_array = GenerateRandomArray(expand_times);
     uint64_t array_size = (uint64_t)pow(2.0, expand_times * 1.0);
     start = rdtsc();
-    for (uint64_t i = 0; i < array_size; i += CacheSize) {
+    
+    // unroll loop for more accurate results
+    for (uint64_t i = 0; i < array_size; i += (CacheLineSize*8)) {
         random_array[i] = 'a';
+        random_array[i+CacheLineSize*1] = 'b';
+        random_array[i+CacheLineSize*2] = 'c';
+        random_array[i+CacheLineSize*3] = 'd';
+        random_array[i+CacheLineSize*4] = 'e';
+        random_array[i+CacheLineSize*5] = 'f';
+        random_array[i+CacheLineSize*6] = 'g';
+        random_array[i+CacheLineSize*7] = 'h';
     }
     end = rdtsc();
     count = end - start;
@@ -135,17 +153,18 @@ static void PageFaultServiceTime(){
     uint64_t start, end;
     int ITER = 100;
     double sum = 0, std = 0;
-    // dd if=/dev/urandom of=file.txt bs=1048576 count=1024
+    // Uncomment the following code when first use
+    //system("dd if=/dev/urandom of=file.txt bs=1048576 count=1024");
     int fd = open("file.txt",O_RDONLY);
     int stride = pow(2,23);  // 8MB-stride, larger than any cache size
     char ch;
     int aggregate = 0;
     char* file_array;
     file_array = (char*) mmap(NULL, pow(2,30), PROT_READ, MAP_SHARED, fd, 0);
-       
+    ch = file_array[0]; // read file_array into memory
     start = rdtsc();
     for (int i=0; i<ITER; i++){
-	ch = file_array[(i+1) * stride];
+	    ch = file_array[(i+1) * stride];
         aggregate = ch+1;
     }
     end = rdtsc();
@@ -156,7 +175,9 @@ static void PageFaultServiceTime(){
 }
 
 int main(int argc, const char * argv[]) {
-
+    printf("Clearing Memory and SSD caches...\n");
+    system("sudo purge"); // clear memory and SSD cache
+    printf("Cleared!\n");
     int stride = 0, power = 0;
     for(stride = MIN_STRIDE; stride <= MAX_STRIDE; stride *= 2){
         printf("stride = %d\n", stride);
