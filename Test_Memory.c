@@ -139,6 +139,7 @@ void RamBandwidth(char io_flag) {
             }
             printf("%d: %lf MB/s. \n", i, bandwidth);
         }
+        printf("The RAM reading bandwidth is %lf MB/s. \n",bandwidth_max);
     }
     else if (io_flag == 'w') {
         printf("Writing RAM bandwidth: \n");
@@ -149,8 +150,8 @@ void RamBandwidth(char io_flag) {
             }
             printf("%d: %lf MB/s. \n", i, bandwidth);
         }
+        printf("The RAM writing bandwidth is %lf MB/s. \n",bandwidth_max);
     }
-    printf("The RAM bandwidth is %lf MB/s. \n",bandwidth_max);
     return;
 }
 
@@ -186,8 +187,7 @@ int main(int argc, const char * argv[]) {
     printf("Clearing Memory and SSD caches...\n");
     system("sudo purge"); // clear memory and SSD cache
     printf("Cleared!\n");
-    int interval = 0;
-    for(interval = MIN_INTERVAL; interval <= MAX_INTERVAL; interval *= 2){
+    for(int interval = MIN_INTERVAL; interval <= MAX_INTERVAL; interval *= 2){
         printf("interval = %d\n", interval);
         for(int expand_times = MIN_EXPANDTIME; expand_times <= MAX_EXPANDTIME; expand_times++){
             MemoryAccessTime(interval, expand_times);
@@ -196,6 +196,7 @@ int main(int argc, const char * argv[]) {
     }
     RamBandwidth('r');
     RamBandwidth('w');
+
     PageFaultServiceTime();
     return 0;
 }
