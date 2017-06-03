@@ -13,7 +13,6 @@
 #define HOST_ADDR "127.0.0.1"
 //remote
 //#define HOST_ADDR "140.112.30.38"
-//#define HOST_ADDR "137.110.91.196"
 #define BUFFER_SIZE 4096
 #define ITERATION 100
 #define CYCLES_PER_SECOND 2.9e9
