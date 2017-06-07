@@ -10,48 +10,47 @@
 #include <time.h>
 #define PORT 49152
 //loopback
-#define HOST_ADDR "127.0.0.1"
+//#define HOST_ADDR "127.0.0.1"
 //remote
-//#define HOST_ADDR "140.112.30.38"
+#define HOST_ADDR "100.80.180.44"
 #define BUFFER_SIZE 4096
 #define ITERATION 100
 #define CYCLES_PER_SECOND 2.9e9
 static __inline__ uint64_t rdtsc(void) {
     unsigned hi, lo;
     __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-    return ( (uint64_t)lo)|( ((uint64_t)hi)<<32);
+    return ((uint64_t)lo)|( ((uint64_t)hi)<<32);
 }
 
 double client(char* message){
-    uint64_t start = 0, end = 0, elapsed = 0;
+
+    uint64_t start = 0, end = 0;
+    int sockid;
     struct sockaddr_in server_addr;
     struct hostent *server;
 
-    /* Create a TCP socket in server */
-    int sockid = socket(PF_INET, SOCK_STREAM, 0);
-    if (sockid < 0){
-        printf("Failed to create socket!\n");
-        return sockid;
-    }
+    /* Create a TCP socket in client */
+    sockid = socket(PF_INET, SOCK_STREAM, 0);
+    if (sockid < 0)
+        perror("ERROR opening socket");
 
-    //Specify attributes of server_addr
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    //Specify host address
+    //Assign address and port to socket
     server = gethostbyname(HOST_ADDR);
-    memcpy(server->h_addr, &server_addr.sin_addr.s_addr, server->h_length);
-    //Establise connection to server
-    if (connect(sockid, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0){
-        printf("Failed to connect to server!\n");
-        return -1;
-    }
+    bzero((char *) &server_addr, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length);
+    server_addr.sin_port = htons(PORT);
 
-    //Initialize the message buffer
+    //Connect to server
+    if (connect(sockid,(struct sockaddr*)&server_addr,sizeof(server_addr)) < 0)
+        perror("ERROR connecting to server");
+
+    //Create message
     //char* write_buffer = (char*)malloc(BUFFER_SIZE);
-    char* read_buffer = (char *) malloc(BUFFER_SIZE);
-    bzero(read_buffer, BUFFER_SIZE);
+    char* read_buffer = (char*)malloc(BUFFER_SIZE);
+    bzero(read_buffer,BUFFER_SIZE);
     //bzero(write_buffer, BUFFER_SIZE);
+
     //strncpy(write_buffer, msg, sizeof(char)*strlen(msg));
     int len = 0;
 
@@ -61,21 +60,22 @@ double client(char* message){
     // if (len < 0)
     //    perror("ERROR writing to socket");
     //Read from server
-    len = read(sockid, read_buffer, BUFFER_SIZE-1);
+    len = read(sockid, read_buffer, BUFFER_SIZE - 1);
     // if (len < 0)
     //    perror("ERROR reading from socket");
     end = rdtsc();
     //printf("Message receive from server: %s\n", read_buffer);
 
     close(sockid);
+    //printf("%f\n", (end-start)/2.7);
+
     return (end - start);
 }
 
 double RoundTripTime() {
 
     double total_time = 0.0;
-    char *message = "s";
-
+    char *message = "m";
     for(int i = 0; i < ITERATION; i++) {
         total_time += client(message);
     }
@@ -91,10 +91,10 @@ char* rand_char_arr(int log_array_size) {
     }
     return char_arr;
 }
-double peak_bandwidth() {
+double PeakBandwidth() {
     double nano_sec;
     double bandwidth;
-    double max = 0;
+    double max;
     //array size = 64KB
     //char *array = rand_char_arr(16);
     //printf("%lu\n", strlen(array));
@@ -103,7 +103,7 @@ double peak_bandwidth() {
         char *array = rand_char_arr(i);
         nano_sec = client(array)/2.0;
         //byte/sec
-        bandwidth = pow(2,i-20)*2.9 / (nano_sec * pow(10, -9));
+        bandwidth = pow(2, i-20)*2.9 / (nano_sec * pow(10, -9));
         max = bandwidth > max ? bandwidth:max;
         //printf("Bandwidth: %f MB/sec\n", bandwidth);
     }
@@ -111,16 +111,15 @@ double peak_bandwidth() {
 }
 
 double SetUpTime(){
-
     uint64_t start = 0, end = 0, total_cycle = 0;
-    for(int i = 0; i<ITERATION; i++){
+    for(int i = 0; i < ITERATION; i++){
         int sockid;
         struct sockaddr_in server_addr;
         struct hostent *server;
 
         sockid = socket(PF_INET, SOCK_STREAM, 0);
         if (sockid < 0)
-            perror("ERROR opening socket");
+            perror("ERROR creating socket");
 
         server = gethostbyname(HOST_ADDR);
 
@@ -128,22 +127,17 @@ double SetUpTime(){
         server_addr.sin_family = AF_INET;
         bcopy(server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length);
         server_addr.sin_port = htons(PORT);
-
-        //Measure the time of establishing connection
-        int connection;
         start = rdtsc();
-        connection = connect(sockid,(struct sockaddr*)&server_addr,sizeof(server_addr));
-//        if (connect(sockid,(struct sockaddr*)&server_addr,sizeof(server_addr)) < 0)
-//            perror("ERROR connecting to server");
+        int connection = connect(sockid,(struct sockaddr*) &server_addr,sizeof(server_addr));
+        //if (connect(sockid,(struct sockaddr*)&server_addr,sizeof(server_addr)) < 0)
+        //perror("ERROR connecting to server");
         end = rdtsc();
         total_cycle += end - start;
-
         if (connection < 0)
-            printf("Failed to connect to server!\n");
+            perror("ERROR connecting to server");
         close(sockid);
-
     }
-    return total_cycle / ITERATION;
+    return total_cycle * 1.0 / ITERATION;
 }
 
 double TearDownTime(){
@@ -151,32 +145,27 @@ double TearDownTime(){
     for(int i = 0; i<ITERATION; i++){
         int sockid;
         struct sockaddr_in server_addr;
-        struct hostent *server;
-        if ((sockid = socket(PF_INET, SOCK_STREAM, 0))< 0)
+        struct hostent * server;
+        sockid = socket(PF_INET, SOCK_STREAM, 0);
+        if (sockid < 0)
             perror("ERROR opening socket");
-
         server = gethostbyname(HOST_ADDR);
         bzero((char *) &server_addr, sizeof(server_addr));
         server_addr.sin_family = AF_INET;
-        bcopy((char *)server->h_addr, (char *)&server_addr.sin_addr.s_addr, server->h_length);
+        bcopy((char *) server->h_addr, (char *) &server_addr.sin_addr.s_addr, server->h_length);
         server_addr.sin_port = htons(PORT);
-
-        if (connect(sockid,(struct sockaddr*)&server_addr,sizeof(server_addr)) < 0)
+        if (connect(sockid,(struct sockaddr*) &server_addr,sizeof(server_addr)) < 0)
             perror("ERROR connecting to server");
-
-        //Measure the time of closing socket
         start = rdtsc();
         close(sockid);
         end = rdtsc();
-
-        total_cycle += end-start;
+        total_cycle += end - start;
 
     }
-    return total_cycle / ITERATION;
+    return total_cycle * 1.0 / ITERATION;
 }
 
 int main(int argc, const char* argv[]) {
-
     double setup_time = SetUpTime();
     printf("Connection Setup Time = %f\n", setup_time/2.9);
 
@@ -187,9 +176,8 @@ int main(int argc, const char* argv[]) {
     //printf("Round Trip Time = %f\n", rtt-setup_time-teardown_time);
     printf("Round Trip Time = %f\n", rtt/2.9);
 
-    double bandwidth = peak_bandwidth();
+    double bandwidth = PeakBandwidth();
     printf("Max bandwidth: %f MB/sec\n", bandwidth);
-
 
     return 0;
 }

@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
     //Wait for client socket to connect
     socklen_t client_length = sizeof(client_addr);
     char buffer[256];
+    int status;
     //Keep waiting for client to connect
    for (;;) {
        // Accept new connection
@@ -48,13 +49,11 @@ int main(int argc, char *argv[]) {
        }
        printf("Received: %s\n", buffer);
        //Reply a character
-       if ((write(s, "S", 1)) < 0){
+       if ((write(s, "s", 1)) < 0){
            printf("Write error!\n");
-           return -1;
        }
 
-       if (close(s) < 0){
-           return -1;
-       }
+       status = close(s);
    }
+    return status;
 }
