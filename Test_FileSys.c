@@ -2,7 +2,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <pthread.h>
 #include <time.h>
 #include <unistd.h>
 #include <math.h>
@@ -11,233 +10,207 @@
 #include <fcntl.h>
 
 #define KB 1024
-#define MB 1024 * 1024
+#define MB 1048576
 #define GB 1024 * 1024 * 1024
 #define ITERATION 10
 #define BLOCKSIZE 4096
-#define FileSize  4194304
+#define ContFileSize 512  //MB
 
 static __inline__ uint64_t rdtsc(void) {
     unsigned hi, lo;
     __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-    return ( (uint64_t)lo)|( ((uint64_t)hi)<<32 );
+    return ((uint64_t)lo) | (((uint64_t)hi)<<32);
 }
 
-double FileCacheSize(char* file_path, uint64_t file_size){
-    uint64_t start = 0, end = 0, total_time = 0;
+void CreateFiles(){
+    // Create files for FileCacheSize measurement: file1-7 1-7GB
+    system("dd if=/dev/urandom of=file1 bs=1048576 count=1024");
+    system("dd if=/dev/urandom of=file2 bs=1048576 count=2048");
+    system("dd if=/dev/urandom of=file3 bs=1048576 count=3072");
+    system("dd if=/dev/urandom of=file4 bs=1048576 count=4096");
+    system("dd if=/dev/urandom of=file5 bs=1048576 count=5120");
+    system("dd if=/dev/urandom of=file6 bs=1048576 count=6144");
+    system("dd if=/dev/urandom of=file7 bs=1048576 count=7168");
+    
+    // Create files for Seq/Rand reading: read1-10 1-512MB
+    system("dd if=/dev/urandom of=read1 bs=1048576 count=1");
+    system("dd if=/dev/urandom of=read2 bs=1048576 count=2");
+    system("dd if=/dev/urandom of=read3 bs=1048576 count=4");
+    system("dd if=/dev/urandom of=read4 bs=1048576 count=8");
+    system("dd if=/dev/urandom of=read5 bs=1048576 count=16");
+    system("dd if=/dev/urandom of=read6 bs=1048576 count=32");
+    system("dd if=/dev/urandom of=read7 bs=1048576 count=64");
+    system("dd if=/dev/urandom of=read8 bs=1048576 count=128");
+    system("dd if=/dev/urandom of=read9 bs=1048576 count=256");
+    system("dd if=/dev/urandom of=read10 bs=1048576 count=512");
+    
+    // Create files for contention test
+    system("dd if=/dev/urandom of=cont1 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont2 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont3 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont4 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont5 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont6 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont7 bs=1048576 count=512");
+    system("dd if=/dev/urandom of=cont8 bs=1048576 count=512");
+    
+}
 
-    int i = 0;
-    for(i = 0; i < ITERATION; i++){
-        int fd = open(file_path, O_RDONLY | O_SYNC);
-        // Read a block a time
-        char* read_buffer=(char*)malloc(BLOCKSIZE);
-        ssize_t total_bytes = 0;
+void FileCacheSize(){
+    uint64_t start = 0, end = 0, total_time = 0, mean_time = 0;
+    int fd;
+    char buffer[BLOCKSIZE];
 
-        while(total_bytes < file_size){
-            start = rdtsc();
-            // read a block a time
-            ssize_t bytes_read = read(fd, read_buffer, BLOCKSIZE);
-            //printf("%zd\n", bytes_read);
-            end = rdtsc();
-
-            if (bytes_read <= 0)
-                perror("ERROR reading file");
-
-            total_time += end - start;
-
-            total_bytes += bytes_read;
+    for(int file_num = 1; file_num < 8; file_num++){
+        char filename[128];
+        int loops = GB*file_num/BLOCKSIZE;
+        sprintf(filename,"file%d",file_num);
+        // warm-up read
+        fd = open(filename,O_RDONLY);
+        for(int i=0;i<loops;i++){
+            read(fd,buffer,BLOCKSIZE);
         }
-        //printf("%llu\n", total_time);
-
-        // start = rdtsc();
-        // ssize_t bytes_read = read(fd, read_buffer, BLOCKSIZE);
-        // end = rdtsc();
-
-        // total_time += end - start;
-
-        free(read_buffer);
         close(fd);
-    }
-    printf("%f\n", total_time / (ITERATION * 2.7));
-
-    return total_time/(ITERATION);
-}
-
-void SequentialRead(char* file_path, uint64_t file_size){
-    uint64_t start = 0, end = 0, total_time = 0;
-
-    unsigned long total_blocks = file_size / BLOCKSIZE;
-    //printf("%s\n", file_path);
-    int i = 0, j = 0;
-    for(i = 0; i< ITERATION; i++){
-        //printf("%d\n",i);
-        int fd = open(file_path, O_RDONLY | O_SYNC);
-        // dont use file cache
-        // similar to O_DIRECT flag but mac doesn't have it
-        fcntl(fd, F_NOCACHE);
-        char* read_buffer=(char*)malloc(BLOCKSIZE);
-
-        for (j = 0; j < total_blocks; j++){
+        
+        // measure reading time
+        for(int iter=0;iter<ITERATION;iter++){
+            fd = open(filename,O_RDONLY);
             start = rdtsc();
-            ssize_t bytes_read = read(fd, read_buffer, BLOCKSIZE);
+            for(int i=0;i<loops;i++){
+                read(fd,buffer,BLOCKSIZE);
+            }
             end = rdtsc();
-            if (bytes_read <= 0)
-                perror("ERROR reading file");
-
-            // if read reach end of file, rewind
-            // if (bytes_read <= BLOCKSIZE)
-            // 	lseek(fd, 0, SEEK_SET);
-            total_time += end - start;
+            total_time += (end-start);
+            close(fd);
         }
-        //lseek(fd, 0, SEEK_SET);
-        free(read_buffer);
-        close(fd);
+        
+        mean_time = total_time/ITERATION;
+        printf("Reading %s takes %llu cycles!\n",filename,mean_time);
     }
-    printf("%f\n", log2(total_time/(ITERATION * total_blocks * 2.7)));
 }
 
-void RandomRead(char* file_path, uint64_t file_size){
+void SequentialAccess(){
     uint64_t start = 0, end = 0, total_time = 0;
+    double ave_per_block_time = 0;
+    int fd;
+    char buffer[BLOCKSIZE];
 
-    unsigned long total_blocks = file_size/BLOCKSIZE;
+    for(int file_num = 1; file_num < 10; file_num++){
 
-    srand(time(NULL));
-
-    int i = 0, j = 0;
-    for(i = 0; i< ITERATION; i++){
-        //printf("%d\n",i);
-        int fd = open(file_path, O_RDONLY | O_SYNC);
-        // dont use file cache
-        // similar to O_DIRECT flag but mac doesn't have it
-        fcntl(fd, F_NOCACHE);
-        char* read_buffer=(char*)malloc(BLOCKSIZE);
-
-        for (j = 0; j < total_blocks; j++){
-            int rand_offset = rand()%total_blocks * BLOCKSIZE;
-            //printf("%d\n", rand_offset);
-
-            lseek(fd, rand_offset, SEEK_SET);
+        char filename[128];
+        int loops = MB*pow(2,file_num-1)/BLOCKSIZE;
+        sprintf(filename,"/Users/genmaoshi/Downloads/filetest/read%d",file_num);
+        // measure reading time
+        for(int iter=0;iter<ITERATION;iter++){
+            system("sudo purge");
+            fd = open(filename,O_RDONLY);
+            // use raw device interface by marking F_NOCACHE flag
+            fcntl(fd, F_NOCACHE);
             start = rdtsc();
-            ssize_t bytes_read = read(fd, read_buffer, BLOCKSIZE);
+            for(int i=0;i<loops;i++){
+                read(fd,buffer,BLOCKSIZE);
+            }
             end = rdtsc();
-            if (bytes_read <= 0)
-                perror("ERROR reading file");
-
-            // if read reach end of file, rewind
-            // if (bytes_read <= BLOCKSIZE)
-            // 	lseek(fd, 0, SEEK_SET);
-            total_time += end - start;
+            total_time += (end-start);
+            close(fd);
         }
-        free(read_buffer);
-        close(fd);
+        printf ("====%llu===\n", total_time);
+        ave_per_block_time = total_time * 1.0/ITERATION/loops;
+        printf("Sequential Reading %s takes average per block time %lf cycles, log %lf!\n",filename,ave_per_block_time,log2(ave_per_block_time));
     }
-
-
-    printf("%f\n", log2(total_time/(ITERATION * total_blocks * 2.7)));
 }
-void Contention(int proc_num){
-    int i, j;
-    pid_t parent_pid = getpid();
-    //int proc_num = 20;
-    /*
-    for (i = 1; i <= proc_num; i++) {
-        pid_t pid = fork();
-        //printf("%d\n",pid);
-        if (pid == 0) {
-            char file_name[100];
-            int n = sprintf(file_name, "../Ignore_File/%d", i);
-            //printf("%s\n",file_name);
-            int fd = open(file_name, O_RDONLY|F_NOCACHE);
-            //printf("%d\n",fd);
-            for (j = 0; j < 10000000; j++) {
-                char *buf = (char*)malloc(BLOCKSIZE);
-                ssize_t size = read(fd, buf, BLOCKSIZE);
-                //set to start from the beginning
-                lseek(fd, 0, SEEK_SET);
-                if (j == 10) {
-                    printf("Child, pid = %d, open %s\n", getpid(), file_name);
-                }
-                free(buf);
+
+void RandomAccess(){
+    uint64_t start = 0, end = 0, total_time = 0;
+    double ave_per_block_time = 0;
+    int fd;
+    char buffer[BLOCKSIZE];
+    
+
+    
+    for(int file_num = 1; file_num < 10; file_num++){
+        char filename[128];
+        int loops = MB*pow(2,file_num-1)/BLOCKSIZE;
+        sprintf(filename,"/Users/genmaoshi/Downloads/filetest/read%d",file_num);
+        system("sudo purge");
+        // measure reading time
+        for(int iter=0;iter<ITERATION;iter++){
+            fd = open(filename,O_RDONLY);
+            // use raw device interface by marking F_NOCACHE flag
+            fcntl(fd, F_NOCACHE);
+            for(int i=0;i<loops;i++){
+                int offset = rand()%loops*BLOCKSIZE;  // random access
+                start = rdtsc();
+                pread(fd,buffer,BLOCKSIZE,offset);  // pread allows us can read any location in the file
+                end = rdtsc();
+                total_time += (end-start);
             }
             close(fd);
-            printf("Child %d exit\n", getpid());
-            exit(0);
         }
-    }*/
-    if (getpid() == parent_pid) {
-        //usleep(100000000);
-        uint64_t start;
-        uint64_t end;
-        double elapsed;
-        int fd = open("../Ignore_File/0", O_RDONLY|F_NOCACHE);
-        for (i = 0; i < 100; i++) {
-            char *buf = (char*)malloc(BLOCKSIZE);
-            start = rdtsc();
-            ssize_t size = read(fd, buf, BLOCKSIZE);
-            end = rdtsc();
-            elapsed += end - start;
-            //reset to beginning of file
-            lseek(fd, 0, SEEK_SET);
-            free(buf);
-        }
-        elapsed /= 100.0 * 2.7;
-        printf("Process_num: %d, time: %f\n", proc_num, elapsed);
+        printf ("====%llu===\n", total_time);
+        ave_per_block_time = total_time * 1.0 /ITERATION/loops;
+        printf("Random Reading %s takes average per block time %lf cycles, log %lf!\n",filename,ave_per_block_time,log2(ave_per_block_time));
     }
-    return;
 }
-int main(int argc, const char* argv[]) {
-    //Contention(20);
 
-    // FILE *fp;
-    // 	fp=fopen("FileCacheSize.csv","w+");
-    // 	fprintf(fp,"logFileSize, time\n");
-    unsigned long all_file_size[6] = {1073741824, 2147483648, 3221225472, 4294967296, 5368709120, 6442450944};
+int Contention(int process_nums, int filesize) {
+    uint64_t start = 0, end = 0, total_time = 0, ave_per_block_time = 0;
+    char buffer[BLOCKSIZE];
+    int fd;
+    int self_id = 0;
 
-    int i = 0;
-    /*
-    for(i = 1; i <= 7; i++){
-
-        unsigned long file_size = all_file_size[i-1];
-
-        char full_path[200]= {0};
-        char dir_path[50] = "/Users/Silvia/Desktop/BigFiles/Temp";
-        char file_name[50] = {'\0'};
-        sprintf(file_name, "%d", i);
-        strcat(full_path, dir_path);
-        strcat(full_path, file_name);
-
-        //double overhead = FileCacheSize(full_path, file_size);
+    for (int id = 0; id < process_nums; id++) {
+        pid_t pid = fork();
+        if (pid != 0) {
+            self_id = id;
+            break;
+        } else if (id + 1 == process_nums)
+            return 1;
     }
 
-    for(i = 0; i <= 10; i++){
-        int file_size = pow(2,i) * MB;
-        //printf("%d\n", file_size);
-        char full_path[200]= {0};
-        char dir_path[50] = "/Users/Silvia/Desktop/TempFiles/Temp";
-        char file_name[50] = {'\0'};
-        sprintf(file_name, "%d", i);
-        strcat(full_path, dir_path);
-
-        strcat(full_path, file_name);
-        //SequentialRead(full_path, file_size);
-        RandomRead(full_path, file_size);
-
-    }*/
-
-    //remote access
-    for(i = 8; i <= 8; i++){
-        int file_size = pow(2,i) * MB;
-        //printf("%d\n", file_size);
-        char full_path[200]= {0};
-        sprintf(full_path, "/Volumes/TempFiles/temp%d", i);
-        printf("%s\n",full_path);
-        //printf("Sequential:\n");
-        //SequentialRead(full_path, file_size);
-        printf("Random:\n");
-        RandomRead(full_path, file_size);
-
+    // Different processes read differerent files
+    char filename[128];
+    int loops = filesize / BLOCKSIZE;
+    sprintf(filename, "/Users/genmaoshi/Downloads/filetest/cont%d", self_id + 1);
+    fd = open(filename, O_RDONLY);
+    // use raw device interface by marking F_NOCACHE flag
+    fcntl(fd, F_NOCACHE);
+    start = rdtsc();
+    for (int i = 0; i < loops; i++) {
+        read(fd, buffer, BLOCKSIZE);
     }
+    end = rdtsc();
+    total_time += (end - start);
+    printf ("====%llu===\n", total_time);
+    close(fd);
 
-    //fclose(fp);
+    ave_per_block_time = total_time * 1.0 / loops;
+    printf("Process %d takes average per block time %llu cycles\n", self_id, ave_per_block_time);
+    printf("Process number = %d\n", process_nums);
+    if (self_id != 0) {
+        //printf("exit child process!\n");
+        return 1;
+    }
+    return 0;
+}
+
+
+int main() {
+//    CreateFiles();    //Comments after creating files
+    printf("Clearing caches...\n");
+    system("sudo purge"); // clear memory and SSD cache
+    printf("Cleared!\n");
+    //FileCacheSize();
+    SequentialAccess();
+    RandomAccess();
+    
+
+//    for (int process_nums=2; process_nums<=1; process_nums++){
+//        system("sudo purge"); // clear memory and SSD cache
+//        Contention(process_nums, ContFileSize*MB);
+//    }
+//    int process_nums = 8;
+//    int state;
+//    state = Contention(process_nums, ContFileSize*MB);
     return 0;
 }
