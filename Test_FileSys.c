@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -10,7 +9,7 @@
 #include <fcntl.h>
 
 #define KB 1024
-#define MB 1048576
+#define MB 1024 * 1024
 #define GB 1024 * 1024 * 1024
 #define ITERATION 10
 #define BLOCKSIZE 4096
@@ -31,7 +30,7 @@ void CreateFiles(){
     system("dd if=/dev/urandom of=file5 bs=1048576 count=5120");
     system("dd if=/dev/urandom of=file6 bs=1048576 count=6144");
     system("dd if=/dev/urandom of=file7 bs=1048576 count=7168");
-    
+
     // Create files for Seq/Rand reading: read1-10 1-512MB
     system("dd if=/dev/urandom of=read1 bs=1048576 count=1");
     system("dd if=/dev/urandom of=read2 bs=1048576 count=2");
@@ -43,7 +42,7 @@ void CreateFiles(){
     system("dd if=/dev/urandom of=read8 bs=1048576 count=128");
     system("dd if=/dev/urandom of=read9 bs=1048576 count=256");
     system("dd if=/dev/urandom of=read10 bs=1048576 count=512");
-    
+
     // Create files for contention test
     system("dd if=/dev/urandom of=cont1 bs=1048576 count=512");
     system("dd if=/dev/urandom of=cont2 bs=1048576 count=512");
@@ -53,7 +52,7 @@ void CreateFiles(){
     system("dd if=/dev/urandom of=cont6 bs=1048576 count=512");
     system("dd if=/dev/urandom of=cont7 bs=1048576 count=512");
     system("dd if=/dev/urandom of=cont8 bs=1048576 count=512");
-    
+
 }
 
 void FileCacheSize(){
@@ -62,7 +61,7 @@ void FileCacheSize(){
     char buffer[BLOCKSIZE];
 
     for(int file_num = 1; file_num < 8; file_num++){
-        char filename[128];
+        char filename[20];
         int loops = GB*file_num/BLOCKSIZE;
         sprintf(filename,"file%d",file_num);
         // warm-up read
@@ -71,7 +70,7 @@ void FileCacheSize(){
             read(fd,buffer,BLOCKSIZE);
         }
         close(fd);
-        
+
         // measure reading time
         for(int iter=0;iter<ITERATION;iter++){
             fd = open(filename,O_RDONLY);
@@ -83,26 +82,24 @@ void FileCacheSize(){
             total_time += (end-start);
             close(fd);
         }
-        
+
         mean_time = total_time/ITERATION;
         printf("Reading %s takes %llu cycles!\n",filename,mean_time);
     }
 }
 
 void SequentialAccess(){
-    uint64_t start = 0, end = 0, total_time = 0;
-    double ave_per_block_time = 0;
+    uint64_t start = 0, end = 0, total_time = 0, ave_per_block_time = 0;
     int fd;
     char buffer[BLOCKSIZE];
 
     for(int file_num = 1; file_num < 10; file_num++){
-
-        char filename[128];
+        char filename[20];
         int loops = MB*pow(2,file_num-1)/BLOCKSIZE;
-        sprintf(filename,"/Users/genmaoshi/Downloads/filetest/read%d",file_num);
+        sprintf(filename,"read%d",file_num);
+
         // measure reading time
         for(int iter=0;iter<ITERATION;iter++){
-            system("sudo purge");
             fd = open(filename,O_RDONLY);
             // use raw device interface by marking F_NOCACHE flag
             fcntl(fd, F_NOCACHE);
@@ -114,25 +111,24 @@ void SequentialAccess(){
             total_time += (end-start);
             close(fd);
         }
-        printf ("====%llu===\n", total_time);
-        ave_per_block_time = total_time * 1.0/ITERATION/loops;
-        printf("Sequential Reading %s takes average per block time %lf cycles, log %lf!\n",filename,ave_per_block_time,log2(ave_per_block_time));
+
+        ave_per_block_time = total_time/ITERATION/loops;
+        printf("Sequential Reading %s takes average per block time %llu cycles, log %f!\n",filename,ave_per_block_time,log2(ave_per_block_time));
     }
 }
 
 void RandomAccess(){
-    uint64_t start = 0, end = 0, total_time = 0;
-    double ave_per_block_time = 0;
+    uint64_t start = 0, end = 0, total_time = 0, ave_per_block_time = 0;
     int fd;
     char buffer[BLOCKSIZE];
-    
 
-    
+    system("sudo purge");
+
     for(int file_num = 1; file_num < 10; file_num++){
-        char filename[128];
+        char filename[20];
         int loops = MB*pow(2,file_num-1)/BLOCKSIZE;
-        sprintf(filename,"/Users/genmaoshi/Downloads/filetest/read%d",file_num);
-        system("sudo purge");
+        sprintf(filename,"read%d",file_num);
+
         // measure reading time
         for(int iter=0;iter<ITERATION;iter++){
             fd = open(filename,O_RDONLY);
@@ -147,70 +143,67 @@ void RandomAccess(){
             }
             close(fd);
         }
-        printf ("====%llu===\n", total_time);
-        ave_per_block_time = total_time * 1.0 /ITERATION/loops;
-        printf("Random Reading %s takes average per block time %lf cycles, log %lf!\n",filename,ave_per_block_time,log2(ave_per_block_time));
+
+        ave_per_block_time = total_time/ITERATION/loops;
+        printf("Random Reading %s takes average per block time %llu cycles, log %f!\n",filename,ave_per_block_time,log2(ave_per_block_time));
     }
 }
 
-int Contention(int process_nums, int filesize) {
+void Contention(int process_nums, int filesize){
     uint64_t start = 0, end = 0, total_time = 0, ave_per_block_time = 0;
     char buffer[BLOCKSIZE];
     int fd;
     int self_id = 0;
 
-    for (int id = 0; id < process_nums; id++) {
+    for(int id = 0; id < process_nums; id++){
         pid_t pid = fork();
-        if (pid != 0) {
+        if (pid != 0){
             self_id = id;
             break;
-        } else if (id + 1 == process_nums)
-            return 1;
+        }
+        else if (id+1 == process_nums)
+            return;
     }
 
     // Different processes read differerent files
-    char filename[128];
-    int loops = filesize / BLOCKSIZE;
-    sprintf(filename, "/Users/genmaoshi/Downloads/filetest/cont%d", self_id + 1);
-    fd = open(filename, O_RDONLY);
+    char filename[20];
+    int loops = filesize/BLOCKSIZE;
+    sprintf(filename,"cont%d",self_id+1);
+    fd = open(filename,O_RDONLY);
     // use raw device interface by marking F_NOCACHE flag
     fcntl(fd, F_NOCACHE);
     start = rdtsc();
-    for (int i = 0; i < loops; i++) {
-        read(fd, buffer, BLOCKSIZE);
+    for(int i=0;i<loops;i++){
+        read(fd,buffer,BLOCKSIZE);
     }
     end = rdtsc();
-    total_time += (end - start);
-    printf ("====%llu===\n", total_time);
+    total_time += (end-start);
     close(fd);
 
-    ave_per_block_time = total_time * 1.0 / loops;
-    printf("Process %d takes average per block time %llu cycles\n", self_id, ave_per_block_time);
-    printf("Process number = %d\n", process_nums);
-    if (self_id != 0) {
-        //printf("exit child process!\n");
-        return 1;
-    }
-    return 0;
+    ave_per_block_time = total_time/loops;
+    printf("Process %d takes average per block time %llu cycles\n",self_id,ave_per_block_time);
+    if (self_id!=0)
+        exit(0);
+
 }
 
 
 int main() {
-//    CreateFiles();    //Comments after creating files
+    //CreateFiles();    //Comments after creating files
     printf("Clearing caches...\n");
     system("sudo purge"); // clear memory and SSD cache
     printf("Cleared!\n");
     //FileCacheSize();
-    SequentialAccess();
-    RandomAccess();
-    
+//    SequentialAccess();
+//    RandomAccess();
 
-//    for (int process_nums=2; process_nums<=1; process_nums++){
-//        system("sudo purge"); // clear memory and SSD cache
-//        Contention(process_nums, ContFileSize*MB);
-//    }
-//    int process_nums = 8;
-//    int state;
-//    state = Contention(process_nums, ContFileSize*MB);
+
+    for (int process_nums=1; process_nums<=8; process_nums++){
+        system("sudo purge"); // clear memory and SSD cache
+        Contention(process_nums, ContFileSize*MB);
+    }
+
+
+
     return 0;
 }
